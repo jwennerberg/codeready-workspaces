@@ -1,0 +1,61 @@
+apiVersion: 1.0.0
+metadata:
+  name: ansible-dev-environment
+attributes:
+  extensions.ignoreRecommendations: 'true'
+projects:
+  - name: openshift-playbooks
+    source:
+      location: 'https://github.com/pgustafs/openshift-playbooks.git'
+      type: git
+      branch: master
+  - name: galaxy-role-skeleton
+    source:
+      location: 'https://github.com/pgustafs/galaxy-role-skeleton.git'
+      type: git
+      branch: master
+components:
+  - preferences:
+      python.globalModuleInstallation: true
+      ansible.ansible.useFullyQualifiedCollectionNames: true
+    type: chePlugin
+    reference: 'https://raw.githubusercontent.com/pgustafs/codeready-workspaces/main/plugins/redhat-ansible/meta.yaml'
+    alias: redhat-ansible-extension-
+  - mountSources: true
+    memoryLimit: 512Mi
+    type: dockerimage
+    volumes:
+      - name: venv
+        containerPath: /home/user/.venv
+      - name: ansible
+        containerPath: /home/user/.ansible
+    alias: ansible
+    image: quay.io/pgustafs/crw-python38-ansible-rhel8
+    env:
+      - value: /home/user/.ansible/ansible.cfg
+        name: ANSIBLE_CONFIG
+commands:
+  - name: Ansible Terminal (Virtual Env)
+    actions:
+      - workdir: '${CHE_PROJECTS_ROOT}'
+        type: exec
+        command: 'TMPFILE=$(mktemp); echo "source ${HOME}/.venv/bin/activate" > $TMPFILE; bash --rcfile $TMPFILE'
+        component: ansible
+  - name: Create Ansible Role
+    actions:
+      - workdir: '${CHE_PROJECTS_ROOT}'
+        type: exec
+        command: 'read -e -p "Enter Role Name: " NAME; source ${HOME}/.venv/bin/activate; ansible-galaxy init --role-skeleton=galaxy-role-skeleton/skeleton_empty $NAME && exit'
+        component: ansible
+  - name: Add Automation Hub Token
+    actions:
+      - workdir: '${HOME}/.ansible'
+        type: exec
+        command: 'read -e -p "Enter Token: " TOKEN; sed -i s/REPLACEME/$TOKEN/ ansible.cfg && exit'
+        component: ansible
+  - name: Install Collection
+    actions:
+      - workdir: '${HOME}'
+        type: exec
+        command: 'read -e -p "Enter Collection Name: " COLLECTION; source ${HOME}/.venv/bin/activate; ansible-galaxy collection install $COLLECTION && exit'
+        component: ansible
