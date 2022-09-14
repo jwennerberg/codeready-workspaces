@@ -1,61 +1,83 @@
-apiVersion: 1.0.0
+schemaVersion: 2.1.0
 metadata:
   name: ansible-dev-environment
+  namespace: jwennerb-dev
 attributes:
+  .che/che-theia-plugins.yaml: |
+    []
+  .vscode/extensions.json: |-
+    {
+      "recommendations": ['redhat.ansible']
+    }
+  dw.metadata.annotations:
+    che.eclipse.org/che-editor: eclipse/che-theia/latest
+    che.eclipse.org/devfile-source: |
+      url:
+        location: 'https://github.com/jwennerberg/codeready-workspaces.git'
+      factory:
+        params: 'url=https://github.com/jwennerberg/codeready-workspaces.git'
+    che.eclipse.org/last-updated-timestamp: '2022-09-13T16:42:12.191Z'
   extensions.ignoreRecommendations: 'true'
+  metadata-name-field: generateName
+  metadata-name-original-value: ansible-dev-environment
 projects:
-  - name: openshift-playbooks
-    source:
-      location: 'https://github.com/pgustafs/openshift-playbooks.git'
-      type: git
-      branch: master
-  - name: galaxy-role-skeleton
-    source:
-      location: 'https://github.com/pgustafs/galaxy-role-skeleton.git'
-      type: git
-      branch: master
+  - attributes:
+      source-origin: branch
+    git:
+      checkoutFrom:
+        revision: master
+      remotes:
+        origin: 'https://github.com/pgustafs/openshift-playbooks.git'
+    name: openshift-playbooks
+  - attributes:
+      source-origin: branch
+    git:
+      checkoutFrom:
+        revision: master
+      remotes:
+        origin: 'https://github.com/pgustafs/galaxy-role-skeleton.git'
+    name: galaxy-role-skeleton
 components:
-  - preferences:
-      python.globalModuleInstallation: true
-      ansible.ansible.useFullyQualifiedCollectionNames: true
-    type: chePlugin
-    reference: 'https://raw.githubusercontent.com/pgustafs/codeready-workspaces/main/plugins/redhat-ansible/meta.yaml'
-    alias: redhat-ansible-extension-
-  - mountSources: true
-    memoryLimit: 512Mi
-    type: dockerimage
-    volumes:
-      - name: venv
-        containerPath: /home/user/.venv
-      - name: ansible
-        containerPath: /home/user/.ansible
-    alias: ansible
-    image: quay.io/pgustafs/crw-python38-ansible-rhel8
-    env:
-      - value: /home/user/.ansible/ansible.cfg
-        name: ANSIBLE_CONFIG
+  - container:
+      env:
+        - name: ANSIBLE_CONFIG
+          value: /home/user/.ansible/ansible.cfg
+      image: quay.io/pgustafs/crw-python38-ansible-rhel8
+      memoryLimit: 512Mi
+      mountSources: true
+      sourceMapping: /projects
+      volumeMounts:
+        - name: venv
+          path: /home/user/.venv
+        - name: ansible-volume
+          path: /home/user/.ansible
+    name: ansible
+  - name: venv
+    volume: {}
+  - name: ansible-volume
+    volume: {}
 commands:
-  - name: Ansible Terminal (Virtual Env)
-    actions:
-      - workdir: '${CHE_PROJECTS_ROOT}'
-        type: exec
-        command: 'TMPFILE=$(mktemp); echo "source ${HOME}/.venv/bin/activate" > $TMPFILE; bash --rcfile $TMPFILE'
-        component: ansible
-  - name: Create Ansible Role
-    actions:
-      - workdir: '${CHE_PROJECTS_ROOT}'
-        type: exec
-        command: 'read -e -p "Enter Role Name: " NAME; source ${HOME}/.venv/bin/activate; ansible-galaxy init --role-skeleton=galaxy-role-skeleton/skeleton_empty $NAME && exit'
-        component: ansible
-  - name: Add Automation Hub Token
-    actions:
-      - workdir: '${HOME}/.ansible'
-        type: exec
-        command: 'read -e -p "Enter Token: " TOKEN; sed -i s/REPLACEME/$TOKEN/ ansible.cfg && exit'
-        component: ansible
-  - name: Install Collection
-    actions:
-      - workdir: '${HOME}'
-        type: exec
-        command: 'read -e -p "Enter Collection Name: " COLLECTION; source ${HOME}/.venv/bin/activate; ansible-galaxy collection install $COLLECTION && exit'
-        component: ansible
+  - exec:
+      commandLine: 'TMPFILE=$(mktemp); echo "source ${HOME}/.venv/bin/activate" > $TMPFILE; bash --rcfile $TMPFILE'
+      component: ansible
+      label: Ansible Terminal (Virtual Env)
+      workingDir: '${PROJECTS_ROOT}'
+    id: ansible-terminal-virtual-env
+  - exec:
+      commandLine: 'read -e -p "Enter Role Name: " NAME; source ${HOME}/.venv/bin/activate; ansible-galaxy init --role-skeleton=galaxy-role-skeleton/skeleton_empty $NAME && exit'
+      component: ansible
+      label: Create Ansible Role
+      workingDir: '${PROJECTS_ROOT}'
+    id: create-ansible-role
+  - exec:
+      commandLine: 'read -e -p "Enter Token: " TOKEN; sed -i s/REPLACEME/$TOKEN/ ansible.cfg && exit'
+      component: ansible
+      label: Add Automation Hub Token
+      workingDir: '${HOME}/.ansible'
+    id: add-automation-hub-token
+  - exec:
+      commandLine: 'read -e -p "Enter Collection Name: " COLLECTION; source ${HOME}/.venv/bin/activate; ansible-galaxy collection install $COLLECTION && exit'
+      component: ansible
+      label: Install Collection
+      workingDir: '${HOME}'
+    id: install-collection
